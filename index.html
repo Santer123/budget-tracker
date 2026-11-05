@@ -64,7 +64,6 @@
     display: flex; align-items: center; gap: 10px;
     padding: 12px 0; border-bottom: 1px solid var(--line);
     min-height: 56px;
-    /* cursor entfernt, da nicht mehr klickbar */
   }
   .item:last-child { border-bottom: none; }
   .item .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
@@ -150,42 +149,6 @@
   .amount-display.income .cur { color: var(--green); }
   .amount-display.income .val:not(.empty) { color: var(--green); }
 
-  .mic-btn {
-    position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    width: 48px; height: 48px; border-radius: 50%;
-    background: var(--card); border: none;
-    color: var(--blue);
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    transition: background .2s, color .2s;
-  }
-  .mic-btn.recording {
-    background: var(--red); color: #fff;
-    animation: pulse 1s infinite;
-  }
-  .mic-btn.recording::after {
-    content: ''; position: absolute; inset: -4px;
-    border-radius: 50%; border: 2px solid var(--red);
-    animation: ring 1.2s infinite;
-    pointer-events: none;
-  }
-  @keyframes pulse { 0%,100% { transform: translateY(-50%) scale(1); } 50% { transform: translateY(-50%) scale(1.06); } }
-  @keyframes ring { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.6); opacity: 0; } }
-
-  .voice-banner {
-    display: none; align-items: center; gap: 10px;
-    background: #e8f2ff; color: var(--blue);
-    padding: 10px 14px; border-radius: 12px;
-    margin-bottom: 10px; font-size: 14px;
-  }
-  .voice-banner.show { display: flex; }
-  .voice-banner b { font-weight: 700; }
-  .voice-banner.error { background: #ffe8e5; color: var(--red); }
-  .voice-banner .vb-clear {
-    margin-left: auto; background: none; border: none;
-    color: inherit; cursor: pointer; font-size: 15px; padding: 4px 6px;
-  }
-
   .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
   .numpad button {
     padding: 18px 0; border: none; border-radius: 12px;
@@ -208,7 +171,6 @@
     cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px;
     transition: transform .1s, background .15s;
   }
-  /* Visuelles Feedback beim Halten */
   .cat-chip:active { transform: scale(0.95); background: var(--card2); }
   
   .cat-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
@@ -393,23 +355,8 @@
     <div class="amount-display" id="amountDisplay">
       <span class="cur">CHF</span>
       <span class="val empty" id="amountValue">0</span>
-      <button class="mic-btn" id="micBtn" title="Spracheingabe">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" stroke="none"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </button>
     </div>
-    <div class="voice-banner" id="voiceBanner">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor" stroke="none"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      </svg>
-      <span class="vb-text">Erkannt: <b id="voiceAmount">—</b></span>
-      <button class="vb-clear" id="voiceClear" title="Verwerfen">✕</button>
-    </div>
+    
     <div class="numpad" id="numpad">
       <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
       <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
@@ -447,7 +394,7 @@
       </div>
     </div>
     <div class="settings-section">
-      <div class="field-label">Monatsübersicht</div>
+      <div class="field-label">Abgeschlossene Monate</div>
       <div id="statsList"></div>
     </div>
     <div class="settings-section">
@@ -495,7 +442,6 @@
 
   let monthlyBudget=parseFloat(localStorage.getItem(K_BUDGET))||0;
   let expenses=JSON.parse(localStorage.getItem(K_EXP)||'[]');
-  // Migration: alte Einträge ohne kind werden als Ausgabe behandelt
   expenses=expenses.map(e=>({...e, kind: e.kind || 'expense'}));
   let cats=JSON.parse(localStorage.getItem(K_CAT)||'null')||DEFAULT_CATS;
   if(!Array.isArray(cats)||!cats.length) cats=DEFAULT_CATS;
@@ -551,8 +497,10 @@
     const daysInMonth=new Date(viewMonth.getFullYear(),viewMonth.getMonth()+1,0).getDate();
     const dayNow=current?now.getDate():daysInMonth;
     const daysLeft=current?Math.max(1,daysInMonth-dayNow+1):0;
-    const todayTotal=daysLeft>0?(effectiveBudget-(spentMonth-spentToday))/daysLeft:0;
-    const available=todayTotal-spentToday;
+    
+    // KORRIGIERTE FORMEL: Restgeld / verbleibende Tage
+    const todayTotal = daysLeft > 0 ? remainingMonth / daysLeft : 0;
+    const available = todayTotal - spentToday;
 
     const hl=document.getElementById('heroLabel'), ha=document.getElementById('heroAmount'), hs=document.getElementById('heroSub');
     if(monthlyBudget<=0 && incomeMonth<=0){
@@ -622,7 +570,6 @@
         };
 
         el.appendChild(dot); el.appendChild(col); el.appendChild(amt); el.appendChild(trash);
-        // Klick auf die Zeile wurde entfernt!
         list.appendChild(el);
       }
     }
@@ -639,12 +586,22 @@
       if(e.kind==='income') byMonth[ym].income+=e.amount;
       else byMonth[ym].spent+=e.amount;
     }
-    const months=Object.keys(byMonth).sort().reverse();
+
+    const now = new Date();
+    const currentYm = ymKey(now);
+
+    const months=Object.keys(byMonth)
+      .filter(ym => ym < currentYm)
+      .sort()
+      .reverse();
+
     if(!months.length){
       const empty=document.createElement('div'); empty.className='stat-empty';
-      empty.textContent='Noch keine Einträge erfasst'; container.appendChild(empty);
+      empty.textContent='Noch keine abgeschlossenen Monate.'; 
+      container.appendChild(empty);
       return;
     }
+    
     let totalBudget=0, totalSpent=0, totalIncome=0;
     for(const ym of months){
       const [y,m]=ym.split('-').map(Number);
@@ -664,7 +621,7 @@
     }
     const totalDiff=totalBudget+totalIncome-totalSpent;
     const totalRow=document.createElement('div'); totalRow.className='stat-row total';
-    const lbl=document.createElement('div'); lbl.className='stat-label'; lbl.textContent='Insgesamt';
+    const lbl=document.createElement('div'); lbl.className='stat-label'; lbl.textContent='Insgesamt (Abgeschlossen)';
     const val=document.createElement('div');
     val.className='stat-value'+(totalDiff<0?' neg':'');
     val.textContent=fmtSigned(totalDiff);
@@ -796,9 +753,7 @@
       const dot=document.createElement('span'); dot.className='dot'; dot.style.background=c.color;
       b.appendChild(dot); b.appendChild(document.createTextNode(c.name));
       
-      // Standard-Klick (Auswahl)
       b.onclick=(e)=>{
-        // Verhindert, dass ein Long-Press versehentlich die Kategorie auswählt
         if (b.dataset.longPressed === 'true') {
             b.dataset.longPressed = 'false';
             return;
@@ -806,14 +761,13 @@
         selectedCat=c.id; renderCats();
       };
 
-      // Long-Press Logik für Kategorie löschen
       let pressTimer;
       const startPress = (e) => {
         if (e.type === 'contextmenu') e.preventDefault();
         pressTimer = setTimeout(() => {
           b.dataset.longPressed = 'true';
           askDeleteCategory(c);
-        }, 600); // 0.6 Sekunden
+        }, 600);
       };
       const cancelPress = () => clearTimeout(pressTimer);
 
@@ -822,7 +776,6 @@
       b.addEventListener('touchmove', cancelPress);
       b.addEventListener('touchcancel', cancelPress);
       
-      // Desktop Support
       b.addEventListener('contextmenu', (e) => { e.preventDefault(); startPress(e); });
       b.addEventListener('mousedown', startPress);
       b.addEventListener('mouseup', cancelPress);
@@ -862,7 +815,6 @@
   const amountDisplay=document.getElementById('amountDisplay');
   const saveBtn=document.getElementById('saveBtn');
   const sheetTitle=document.getElementById('sheetTitle');
-  const voiceBanner=document.getElementById('voiceBanner');
   const segmented=document.getElementById('segmented');
 
   function openSheet(sh){ sh.classList.add('open'); document.body.classList.add('locked'); }
@@ -896,7 +848,6 @@
   });
 
   function pressKey(k){
-    hideVoiceBanner();
     if(k==='back'){
       amountStr=amountStr.slice(0,-1);
     } else if(k===','){
@@ -923,7 +874,6 @@
 
   document.getElementById('addBtn').onclick=()=>{
     amountStr=''; updateAmount();
-    hideVoiceBanner();
     setKind('expense');
     document.getElementById('newCatRow').classList.remove('open');
     document.getElementById('newCatInput').value='';
@@ -936,7 +886,7 @@
       id:(crypto.randomUUID?crypto.randomUUID():'x'+Date.now()+Math.random()),
       amount:v, category:selectedCat, kind:currentKind, date:new Date().toISOString()
     });
-    save(); hideVoiceBanner(); closeSheet(amountSheet); render(); renderStats(); renderAdvancedStats();
+    save(); closeSheet(amountSheet); render(); renderStats(); renderAdvancedStats();
   };
 
   [amountSheet,settingsSheet].forEach(sh=>{
@@ -1093,94 +1043,6 @@
   }
   enableSwipeToClose(amountSheet);
   enableSwipeToClose(settingsSheet);
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const micBtn=document.getElementById('micBtn');
-  let recognition=null, recognizing=false;
-
-  function showVoiceBanner(amount, rawText){
-    const label=voiceBanner.querySelector('.vb-text');
-    if(amount!=null){
-      voiceBanner.classList.remove('error');
-      label.innerHTML='Erkannt: <b>'+fmt(amount)+'</b>';
-    } else {
-      voiceBanner.classList.add('error');
-      label.innerHTML='Nicht erkannt: <b>'+(rawText||'—')+'</b>';
-    }
-    voiceBanner.classList.add('show');
-  }
-  function hideVoiceBanner(){ voiceBanner.classList.remove('show'); }
-  document.getElementById('voiceClear').onclick=hideVoiceBanner;
-
-  function parseSpokenAmount(text){
-    if(!text) return null;
-    let t=text.toLowerCase().trim();
-    t=t.replace(/\b(chf|frank|franken|rappen|für|ich|habe|ausgegeben|bezahlt|kostet|kostete|verdient|eingenommen|bekommen|noch|und)\b/g,' ');
-    t=t.replace(/\bkomma\b/g,'.');
-    t=t.replace(/\s+/g,' ').trim();
-    let m=t.match(/(\d+)[.,](\d{1,2})/);
-    if(m) return parseFloat(m[1]+'.'+m[2]);
-    m=t.match(/(?:^|\s)(\d{1,4})\s+(\d{1,2})(?:\s|$)/);
-    if(m) return parseFloat(m[1]+'.'+m[2].padStart(2,'0'));
-    m=t.match(/(\d+(?:[.,]\d+)?)/);
-    if(m) return parseFloat(m[1].replace(',','.'));
-    return null;
-  }
-  function formatAmountStr(n){
-    const r=Math.round(n*100)/100;
-    if(r%1===0) return String(r);
-    return r.toFixed(2).replace('.',',');
-  }
-
-  if(!SpeechRecognition){
-    micBtn.style.display='none';
-  } else {
-    micBtn.addEventListener('click',()=>{
-      if(recognizing){
-        try{ recognition.stop(); }catch(e){}
-        return;
-      }
-      recognition=new SpeechRecognition();
-      recognition.lang='de-CH';
-      recognition.interimResults=false;
-      recognition.maxAlternatives=1;
-      recognition.continuous=false;
-      recognition.onstart=()=>{
-        recognizing=true;
-        micBtn.classList.add('recording');
-        hideVoiceBanner();
-      };
-      recognition.onresult=(e)=>{
-        const text=e.results[0][0].transcript;
-        const amount=parseSpokenAmount(text);
-        if(amount!=null && amount>0){
-          amountStr=formatAmountStr(amount);
-          updateAmount();
-          showVoiceBanner(amount,text);
-        } else {
-          showVoiceBanner(null,text);
-        }
-      };
-      recognition.onerror=(e)=>{
-        recognizing=false;
-        micBtn.classList.remove('recording');
-        if(e.error==='not-allowed'||e.error==='service-not-allowed'){
-          showVoiceBanner(null,'Mikrofon nicht erlaubt');
-        } else if(e.error==='no-speech'){
-          showVoiceBanner(null,'Nichts gehört');
-        } else if(e.error==='network'){
-          showVoiceBanner(null,'Keine Verbindung');
-        } else {
-          showVoiceBanner(null,'Fehler');
-        }
-      };
-      recognition.onend=()=>{
-        recognizing=false;
-        micBtn.classList.remove('recording');
-      };
-      try{ recognition.start(); }catch(e){ console.warn(e); }
-    });
-  }
 
   setKind('expense');
   renderCats(); render(); renderStats(); renderAdvancedStats(); updateAmount();
