@@ -63,9 +63,9 @@
   .item {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 0; border-bottom: 1px solid var(--line);
-    min-height: 56px; cursor: pointer;
+    min-height: 56px;
+    /* cursor entfernt, da nicht mehr klickbar */
   }
-  .item:active { opacity: .5; }
   .item:last-child { border-bottom: none; }
   .item .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
   .item .col { flex: 1; min-width: 0; }
@@ -200,12 +200,17 @@
 
   .field-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin: 8px 0 10px; font-weight: 600; }
   .cats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  
   .cat-chip {
     padding: 12px 18px; border-radius: 999px;
     background: var(--card); border: 1.5px solid transparent;
     color: var(--txt); font-size: 14px; font-weight: 500;
     cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px;
+    transition: transform .1s, background .15s;
   }
+  /* Visuelles Feedback beim Halten */
+  .cat-chip:active { transform: scale(0.95); background: var(--card2); }
+  
   .cat-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
   .cat-chip.active { border-color: var(--txt); background: #fff; }
   .cat-chip.add { background: transparent; border: 1.5px dashed var(--card2); color: var(--muted); }
@@ -327,7 +332,7 @@
   .confirm-box {
     background: #fff; border-radius: 16px;
     padding: 24px 20px 16px;
-    max-width: 300px; width: 100%;
+    max-width: 320px; width: 100%;
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,.25);
     transform: scale(.95);
@@ -411,7 +416,8 @@
       <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
       <button data-key="," class="comma">,</button><button data-key="0">0</button><button data-key="back" class="backspace">⌫</button>
     </div>
-    <div class="field-label">Kategorie</div>
+    
+    <div class="field-label">Kategorie <span style="text-transform:none;font-weight:400;color:var(--card2)">(Halten zum Löschen)</span></div>
     <div class="cats" id="catChips"></div>
     <div class="new-cat-row" id="newCatRow">
       <input type="text" id="newCatInput" placeholder="Name der Kategorie">
@@ -462,7 +468,7 @@
 
 <div class="confirm-modal" id="confirmModal">
   <div class="confirm-box">
-    <div class="confirm-title" id="confirmTitle">Eintrag löschen?</div>
+    <div class="confirm-title" id="confirmTitle">Löschen?</div>
     <div class="confirm-body" id="confirmBody"></div>
     <div class="confirm-actions">
       <button class="confirm-cancel" id="confirmCancel">Abbrechen</button>
@@ -596,20 +602,27 @@
         trash.className='trash-btn';
         trash.title='Löschen';
         trash.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+        
         trash.onclick=(ev)=>{
           ev.stopPropagation();
-          askDelete(e);
+          const isInc = e.kind==='income';
+          showConfirm(
+            isInc ? 'Einnahme löschen?' : 'Ausgabe löschen?',
+            `<b>${c.name}</b><br>${isInc?'+ ':''}${fmt(e.amount)}`,
+            () => {
+              const idx = expenses.findIndex(x=>x.id===e.id);
+              if(idx>=0){
+                lastDeleted={exp:expenses[idx],idx};
+                expenses.splice(idx,1);
+                save(); render(); renderStats(); renderAdvancedStats();
+                showSnackbar('Eintrag gelöscht');
+              }
+            }
+          );
         };
 
         el.appendChild(dot); el.appendChild(col); el.appendChild(amt); el.appendChild(trash);
-
-        el.onclick=()=>{
-          const idx=expenses.findIndex(x=>x.id===e.id);
-          if(idx<0) return;
-          lastDeleted={exp:expenses[idx],idx};
-          expenses.splice(idx,1);
-          save(); render(); renderStats(); renderAdvancedStats(); showSnackbar('Eintrag gelöscht');
-        };
+        // Klick auf die Zeile wurde entfernt!
         list.appendChild(el);
       }
     }
@@ -782,7 +795,39 @@
       b.className='cat-chip'+(c.id===selectedCat?' active':'');
       const dot=document.createElement('span'); dot.className='dot'; dot.style.background=c.color;
       b.appendChild(dot); b.appendChild(document.createTextNode(c.name));
-      b.onclick=()=>{ selectedCat=c.id; renderCats(); };
+      
+      // Standard-Klick (Auswahl)
+      b.onclick=(e)=>{
+        // Verhindert, dass ein Long-Press versehentlich die Kategorie auswählt
+        if (b.dataset.longPressed === 'true') {
+            b.dataset.longPressed = 'false';
+            return;
+        }
+        selectedCat=c.id; renderCats();
+      };
+
+      // Long-Press Logik für Kategorie löschen
+      let pressTimer;
+      const startPress = (e) => {
+        if (e.type === 'contextmenu') e.preventDefault();
+        pressTimer = setTimeout(() => {
+          b.dataset.longPressed = 'true';
+          askDeleteCategory(c);
+        }, 600); // 0.6 Sekunden
+      };
+      const cancelPress = () => clearTimeout(pressTimer);
+
+      b.addEventListener('touchstart', startPress, {passive: false});
+      b.addEventListener('touchend', cancelPress);
+      b.addEventListener('touchmove', cancelPress);
+      b.addEventListener('touchcancel', cancelPress);
+      
+      // Desktop Support
+      b.addEventListener('contextmenu', (e) => { e.preventDefault(); startPress(e); });
+      b.addEventListener('mousedown', startPress);
+      b.addEventListener('mouseup', cancelPress);
+      b.addEventListener('mouseleave', cancelPress);
+
       wrap.appendChild(b);
     }
     const add=document.createElement('button');
@@ -884,6 +929,7 @@
     document.getElementById('newCatInput').value='';
     renderCats(); openSheet(amountSheet);
   };
+  
   saveBtn.onclick=()=>{
     const v=parseAmount(amountStr); if(v===null) return;
     expenses.push({
@@ -964,38 +1010,49 @@
   };
 
   const confirmModal=document.getElementById('confirmModal');
-  let pendingDelete=null;
-  function askDelete(expense){
-    const c=catById(expense.category);
-    const isIncome = expense.kind==='income';
-    document.getElementById('confirmTitle').textContent = isIncome ? 'Einnahme löschen?' : 'Ausgabe löschen?';
-    document.getElementById('confirmBody').innerHTML=
-      `<b>${c.name}</b><br>${isIncome?'+ ':''}${fmt(expense.amount)}`;
-    pendingDelete=expense;
+  let confirmCallback=null;
+  
+  function showConfirm(title, bodyHTML, callback) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmBody').innerHTML = bodyHTML;
+    confirmCallback = callback;
     confirmModal.classList.add('open');
     document.body.classList.add('locked');
   }
+  
   function closeConfirm(){
-    pendingDelete=null;
+    confirmCallback=null;
     confirmModal.classList.remove('open');
     if(!document.querySelector('.sheet.open')) document.body.classList.remove('locked');
   }
+  
   document.getElementById('confirmCancel').onclick=closeConfirm;
   document.getElementById('confirmOk').onclick=()=>{
-    if(pendingDelete){
-      const idx=expenses.findIndex(x=>x.id===pendingDelete.id);
-      if(idx>=0){
-        lastDeleted={exp:expenses[idx],idx};
-        expenses.splice(idx,1);
-        save(); render(); renderStats(); renderAdvancedStats();
-        showSnackbar('Eintrag gelöscht');
-      }
-    }
+    if(confirmCallback) confirmCallback();
     closeConfirm();
   };
   confirmModal.addEventListener('click',e=>{
     if(e.target===confirmModal) closeConfirm();
   });
+
+  function askDeleteCategory(catToDelete) {
+    if (cats.length <= 1) {
+      showSnackbar("Mindestens eine Kategorie muss bleiben.");
+      return;
+    }
+    showConfirm(
+      'Kategorie löschen?',
+      `Möchtest du <b>${catToDelete.name}</b> wirklich löschen?<br><small>Bisherige Einträge in dieser Kategorie bleiben erhalten, verlieren aber die Farbe.</small>`,
+      () => {
+        cats = cats.filter(c => c.id !== catToDelete.id);
+        if (selectedCat === catToDelete.id) {
+          selectedCat = cats[0].id;
+        }
+        save(); renderCats(); render();
+        showSnackbar('Kategorie gelöscht');
+      }
+    );
+  }
 
   function enableSwipeToClose(sheet){
     const inner=sheet.querySelector('.sheet-inner');
